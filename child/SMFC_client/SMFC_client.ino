@@ -14,7 +14,7 @@ const char* ssid     = STASSID;
 const char* password = STAPSK;
 
 const char* host = "192.168.178.20";
-const uint16_t port = 5005;
+const uint16_t port = 9999;
 
 WiFiClient client;
 
