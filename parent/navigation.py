@@ -112,7 +112,7 @@ if __name__ == "__main__":
     t0 = time.time()
     #dist = calc_rot_single([0,0,0], img)
     #print(dist)
-    angle = 45
+    angle = 30
     positions, distances = calc_dist(img, 10, [angle])
     plot_pos_dist(positions[4:5], distances[0][4:5], img, angle)
     #print(positions[4:5], distances[1][4:5])
