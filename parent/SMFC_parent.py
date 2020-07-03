@@ -6,31 +6,27 @@ class TCPHandler(socketserver.BaseRequestHandler):
 
     def handle(self):
         # self.request is the TCP socket connected to the client
-        self.data1 = float(self.request.recv(10).strip().decode())
+        self.data1 = self.request.recv(4)
+        self.data1_fl = float(self.data1.strip().decode())/10
         #self.data2 = self.request.recv(1024).strip().decode()
-        #self.data = self.request.recv(1024).strip().decode()
-        #self.data = self.request.recv(1024).strip().decode()
-        #print("{} wrote:".format(self.client_address[0]))
-        ins = self.handle_locdata(self.data1)
+        ins = self.handle_locdata(self.data1_fl)
         self.request.send(ins)
-        print(self.data1)
-        #if self.data1 == "LOCDATA":
-        #    self.handle_locdata()
+        print(self.data1_fl)
 
     def handle_locdata(self, dat1):
         global back_count
-        bc_max = 6
-
+        # 5 stop and go cycles -> ~180 deg turn
+        bc_1 = [b"2", b"2", b"0", b"0"] * 2
+        bc_2 = [b"2", b"0"]*10
+        bc_lookup = [b"2"]*10 + bc_2 + bc_1
+        bc_max = len(bc_lookup)
         if dat1 < 22 or back_count > 0:
-            if back_count == bc_max:
+            if bc_max >= back_count > 0:
                 back_count -= 1
-                ins = b"0"
-            elif bc_max > back_count > 0:
-                back_count -= 1
-                ins = b"1"
+                ins = bc_lookup[back_count]
             else:
                 back_count = bc_max
-                ins = b"2"
+                ins = b"0"
         else:
             ins = b"2"
         return ins
