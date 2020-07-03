@@ -107,8 +107,8 @@ int measureDistanceCm(const uint8_t *triggerPin, const uint8_t *echoPin) {
 
     double speedOfSoundInCmPerMs = 0.03313 + 0.0000606 * 22.0; // Cair ≈ (331.3 + 0.606 ⋅ ϑ) m/s
     double distanceCm = durationMicroSec / 2.0 * speedOfSoundInCmPerMs;
-    if (distanceCm == 0 || distanceCm > 400) {
-        return -1.0 ;
+    if (distanceCm > 500) {
+        return 5000.0;
     } else {
         return distanceCm*10.0;
     }
