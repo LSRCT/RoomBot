@@ -16,9 +16,9 @@ class TCPHandler(socketserver.BaseRequestHandler):
     def handle_locdata(self, dat1):
         global back_count
         # 5 stop and go cycles -> ~180 deg turn
-        bc_1 = [b"2", b"2", b"0", b"0"] * 2
-        bc_2 = [b"2", b"0"]*10
-        bc_lookup = [b"2"]*10 + bc_2 + bc_1
+        bc_1 = [b"2", b"2", b"0", b"0"] * 1
+        bc_2 = [b"2", b"0"]*5
+        bc_lookup = [b"2"]*6 + bc_2 + bc_1
         bc_max = len(bc_lookup)
         if dat1 < 22 or back_count > 0:
             if bc_max >= back_count > 0:
