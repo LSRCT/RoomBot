@@ -23,7 +23,7 @@ int ins = 0;
 // Wifi variables
 const char* ssid     = "LSRCT";
 const char* password = "83067046472468411597";
-const char* host = "192.168.178.20";
+const char* host = "192.168.178.27";
 const uint16_t port = 9999;
 void connect_wifi();
 WiFiClient client;
@@ -45,8 +45,6 @@ void setup() {
 
 void loop() {
   if (client.connect(host, port)) {
-      //client.print(s1name+distanceSensor_1.measureDistanceCm());
-      //client.print(distanceSensor_2.measureDistanceCm());
       distSensor.getDist();
       client.print(distSensor.dist);
       //client.print(distSensor.dist[1]);

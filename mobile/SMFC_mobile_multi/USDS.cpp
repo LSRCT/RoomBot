@@ -1,6 +1,7 @@
 /*
   HCSR04 - Library for arduino, for HC-SR04 ultrasonic distance sensor.
   Created by Martin Sosic, June 11, 2016.
+  Modified by AN
 */
 
 #include "Arduino.h"
@@ -28,7 +29,7 @@ void USDS::getDist(float temperature) {
   digitalWrite(triggerPin, LOW);
   digitalWrite(triggerPin2, LOW);
   delayMicroseconds(2);
-  
+   
   // Hold trigger for 10 microseconds, which is signal for sensor to measure distance.
   digitalWrite(triggerPin, HIGH);
   digitalWrite(triggerPin2, HIGH);
@@ -44,6 +45,4 @@ void USDS::getDist(float temperature) {
   double distanceCm = durationMicroSec / 2.0 * speedOfSoundInCmPerMs;
   double distanceCm2 = durationMicroSec2 / 2.0 * speedOfSoundInCmPerMs;
   this->dist = (long)(distanceCm2*10) << 16 | (long)(distanceCm*10);
-  //this->dist[0] = (int)(distanceCm*10);
-  //this->dist[1] = (int)(distanceCm2*10);
 }
