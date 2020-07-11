@@ -52,6 +52,13 @@ void USDS::getDist(float temperature) {
   double distanceCm = durationMicroSec / 2.0 * speedOfSoundInCmPerMs;
   double distanceCm2 = durationMicroSec2 / 2.0 * speedOfSoundInCmPerMs;
   double distanceCm3 = durationMicroSec3 / 2.0 * speedOfSoundInCmPerMs;
-  this->dist[0] = (long)(distanceCm2*10) << 16 | (long)(distanceCm*10);
-  this->dist[1] = (long)(distanceCm3*10);
+  this->dist[0] = int(distanceCm*10)>> 8;
+  this->dist[1] = int(distanceCm*10);
+  this->dist[2] = int(distanceCm2*10)>> 8;
+  this->dist[3] = int(distanceCm2*10);
+  this->dist[4] = int(distanceCm3*10)>> 8;
+  this->dist[5] = int(distanceCm3*10);
+  
+  //this->dist[0] = (long)(distanceCm2*10) << 16 | (long)(distanceCm*10);
+  //this->dist[1] = (long)(distanceCm3*10);
 }

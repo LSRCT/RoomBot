@@ -23,7 +23,7 @@ class USDS {
      * @returns Distance in centimeters, or negative value if distance is greater than 400cm.
      */
     void getDist();
-    long dist[2] = {0,0};
+    char dist[6] = {0};
     /**
      * Measures distance by sending ultrasonic waves and measuring time it takes them
      * to return.

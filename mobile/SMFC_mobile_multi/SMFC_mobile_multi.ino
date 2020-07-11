@@ -46,10 +46,10 @@ void setup() {
 void loop() {
   if (client.connect(host, port)) {
       distSensor.getDist();
-      client.print(distSensor.dist[0]);
-      Serial.println(distSensor.dist[1]);
+      client.write(distSensor.dist, 6);
       //client.print(distSensor.dist[1]);
-      delay(10);
+      //client.print(distSensor.dist[1]);
+      delay(50);
       while (client.available()) {
         ins = static_cast<int>(client.read());
         exec_ins(&ins);
@@ -74,6 +74,7 @@ void exec_ins(int *ins){
     digitalWrite(D7, HIGH);
     digitalWrite(D8, LOW);
     }
+   //Serial.println(*ins);
   }
 
 void connect_wifi(){
