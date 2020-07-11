@@ -34,14 +34,15 @@ class SMFCBase:
         Handle requests from the given connection until timout occurs
         """
         # self.request is the TCP socket connected to the client
-        self.data1 = np.int32(request.recv(32))
-        dist1 = (self.data1 & (2**16-1))/10
-        dist2 = (self.data1 >> 16)/10
-        #self.data1_fl = float(self.data1.strip().decode())/10
-        #self.data2 = self.request.recv(1024).strip().decode()
+        data_rcv = request.recv(48).hex()
+
+        dist1 = (int(data_rcv[0:4], 16))/10
+        dist2 = (int(data_rcv[4:8], 16))/10
+        dist3 = (int(data_rcv[8:12], 16))/10
         ins = self.handle_locdata(dist1, dist2)
+        #ins = b"2"
         request.send(ins)
-        print(dist1, dist2)
+        print(dist1, dist2, dist3)
         request.close()
 
     def handle_locdata(self, dat1, dat2):
