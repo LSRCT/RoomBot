@@ -15,7 +15,7 @@ class USDS {
      * @param triggerPin  Digital pin that is used for controlling sensor (output).
      * @param echoPin  Digital pin that is used to get information from sensor (input).
      */
-    USDS(int triggerPin, int echoPin, int triggerPin2, int echoPin2);
+    USDS(int triggerPin, int echoPin, int triggerPin2, int echoPin2, int triggerPin3, int echoPin3);
 
     /**
      * Measures distance by sending ultrasonic waves and measuring time it takes them
@@ -23,7 +23,7 @@ class USDS {
      * @returns Distance in centimeters, or negative value if distance is greater than 400cm.
      */
     void getDist();
-    long dist = 0;
+    long dist[2] = {0,0};
     /**
      * Measures distance by sending ultrasonic waves and measuring time it takes them
      * to return.
@@ -32,7 +32,7 @@ class USDS {
      */
     void getDist(float temperature);
  private:
-    int triggerPin, echoPin, triggerPin2, echoPin2;
+    int triggerPin, echoPin, triggerPin2, echoPin2, triggerPin3, echoPin3;
 };
 
 #endif

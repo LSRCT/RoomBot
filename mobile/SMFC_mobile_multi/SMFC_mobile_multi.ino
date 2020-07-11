@@ -30,7 +30,7 @@ WiFiClient client;
 
 // Sensor stuff
 // trigger, echo, trigger2, echo2,...
-USDS distSensor(D6, D5, D1, D2);
+USDS distSensor(D2, D1, D3, D0, D5, D6);
 
 
 
@@ -46,7 +46,8 @@ void setup() {
 void loop() {
   if (client.connect(host, port)) {
       distSensor.getDist();
-      client.print(distSensor.dist);
+      client.print(distSensor.dist[0]);
+      Serial.println(distSensor.dist[1]);
       //client.print(distSensor.dist[1]);
       delay(10);
       while (client.available()) {
@@ -73,7 +74,6 @@ void exec_ins(int *ins){
     digitalWrite(D7, HIGH);
     digitalWrite(D8, LOW);
     }
-  Serial.print(*ins);
   }
 
 void connect_wifi(){
