@@ -49,7 +49,7 @@ void loop() {
       client.write(distSensor.dist, 6);
       //client.print(distSensor.dist[1]);
       //client.print(distSensor.dist[1]);
-      delay(50);
+      delay(10);
       while (client.available()) {
         ins = static_cast<int>(client.read());
         exec_ins(&ins);
