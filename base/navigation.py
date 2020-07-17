@@ -1,4 +1,5 @@
 import numpy as np
+import pickle
 import time
 from PIL import Image
 import matplotlib.pyplot as plt
@@ -75,6 +76,26 @@ def get_location(sensor_data, img_room):
                                 stepsize=50, T=10, niter=500)
     return res
 
+
+def get_loc_2(sensor_data, img_room):
+    positions, distances, angles = pickle.load(open("precalc_dist.p", "rb"))
+    print(f"shape possible positions: {np.shape(positions)}")
+    print(f"shape possible distances: {np.shape(distances)}")
+    t_1 = time.time()
+    dist_from_sim = np.array([np.linalg.norm(sensor_data[0][:3]-x[:3]) for x in distances])
+    min_ind = np.where(dist_from_sim == np.min(dist_from_sim))[0][0]
+    angle = angles[min_ind//len(positions)]
+    print(f"Localization took {time.time()-t_1} seconds")
+    return [positions[min_ind%len(positions)], distances[min_ind], angle]
+
+
+def precalc_dist(img_room):
+    angles = list(range(0,360,10))
+    positions, distances = calc_dist(img, 300, angles)
+    positions = np.array(list(positions))
+    distances = np.concatenate(distances, axis=0)
+    pickle.dump([positions, distances, angles], open("precalc_dist.p", "wb"))
+
 def get_valid_positions(img):
     map_room = np.asarray(img)
     map_room = (np.round(map_room/255, 1))
@@ -110,12 +131,18 @@ if __name__ == "__main__":
     img = Image.open("map3.png").convert("L")
     print(np.shape(np.asarray(img)))
     t0 = time.time()
+    #precalc_dist(img)
     #dist = calc_rot_single([0,0,0], img)
     #print(dist)
-    angle = 30
+    angle = 90
     positions, distances = calc_dist(img, 10, [angle])
-    plot_pos_dist(positions[4:5], distances[0][4:5], img, angle)
     #print(positions[4:5], distances[1][4:5])
-    res = get_location(distances[0][4:5], img)
-    plot_pos_dist([np.round(res.x).astype(int)], [calc_rot_single(np.round(res.x).astype(int), img)], img, int(res.x[2]))
+    #res = get_location(distances[0][4:5], img)
+    import time
+    t_0 = time.time()
+    res = get_loc_2(distances[0][4:5], img)
+    print(f"Calculation took {time.time()-t_0} seconds")
+    plot_pos_dist(positions[4:5], distances[0][4:5], img, angle)
+    plot_pos_dist([res[0]], [res[1]], img, res[2])
+    #plot_pos_dist([np.round(res.x).astype(int)], [calc_rot_single(np.round(res.x).astype(int), img)], img, int(res.x[2]))
     print(res)
