@@ -2,7 +2,7 @@ import time
 import os, sys
 import socket
 import numpy as np
-
+from RB_nav import RobotLocator
 
 class SMFCBase:
     def __init__(self, ip, port=9999):
@@ -14,6 +14,7 @@ class SMFCBase:
         self.websocket.bind((ip, port))
         self.back_count = 0
         self.logfile = 0
+        self.rb_locator = RobotLocator()
 
     def __del__(self):
         self.websocket.close()
@@ -34,10 +35,10 @@ class SMFCBase:
     def savelocdata(self, data1, data2, data3, ins):
         if not os.path.isfile("rb_datalog.csv"):
             with open("rb_datalog.csv", "w") as lf:
-                lf.write("t;s1;s2;s3;ins;\\n")
+                lf.write("t;s1;s2;s3;ins;\n")
         if not self.logfile:
             self.logfile = open("rb_datalog.csv", "a")
-        self.logfile.write(";".join([str(x) for x in [time.time(), data1, data2, data3, ins, "\\n"]]))
+        self.logfile.write(";".join([str(x) for x in [time.time(), data1, data2, data3, int(ins), "\n"]]))
         
             
 
@@ -51,10 +52,13 @@ class SMFCBase:
         dist1 = (int(data_rcv[0:4], 16))/10
         dist2 = (int(data_rcv[4:8], 16))/10
         dist3 = (int(data_rcv[8:12], 16))/10
+        pos_believ = 
         ins = self.handle_locdata(dist1, dist2, dist3)
         #ins = b"2"
         request.send(ins)
-        self.savelocdata(dist1, dist2, dist3, ins)
+        rb_locator.update_weights(rb_locator.get_loc([dist1,dist2, dist3, 0])
+        print(rb_locator.get_pos_from_ind(np.argmax(rb_locator.loc_weights)))
+        #self.savelocdata(dist1, dist2, dist3, ins)
         print(dist1, dist2, dist3)
         request.close()
 
