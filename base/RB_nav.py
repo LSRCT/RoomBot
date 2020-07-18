@@ -7,14 +7,16 @@ from scipy import optimize
 
 class RobotLocator:
     def __init__(self):
-        self.img_room = Image.open("map3.png").convert("L")
+        self.img_room = Image.open("map4.png").convert("L")
         self.precalc_dist = self.load_precalc_dist()
-        self.loc_weights = np.zeros(len(self.precalc_dist[0].flatten()))
+        self.precalc_dist[1] = np.abs(self.precalc_dist[1].T[:3].T)
+        self.loc_weights = np.zeros(len(self.precalc_dist[1]))
+        self.pos_believe = np.array([0,0,0])
         print(f"weight before update {self.loc_weights[0]}")
     
     def load_precalc_dist(self):
         """ Load precalculated distances for a number of points from a pickle file"""
-        pcdist = pickle.load(open("precalc_dist_HighRes.p", "rb"))
+        pcdist = pickle.load(open("precalc_dist_Map4.p", "rb"))
         return pcdist
 
     def create_precalc_dist(self):
@@ -23,7 +25,7 @@ class RobotLocator:
         positions, distances = self.calc_dist(1000, angles)
         positions = np.array(list(positions))
         distances = np.concatenate(distances, axis=0)
-        pickle.dump([positions, distances, angles], open("precalc_dist_HighRes.p", "wb"))
+        pickle.dump([positions, distances, angles], open("precalc_dist_Map4.p", "wb"))
 
     def calc_dist(self, grid_points, angles):
         """
@@ -105,41 +107,31 @@ class RobotLocator:
         dist = [x_points[0]-pos[0], y_points[0]-pos[1], x_points[1]-pos[0], y_points[1]-pos[1]]
         return np.array(dist)
 
-    def update_weights(self, min_pos_list):
-        """
-        Each location is a asigned a weitght based on the last measured sensor data, this function updates that list
-        :param min_pos_list: List with possible positions ordered according to euclidean distance to measurement
-        """
-        new_weight = np.linspace(-1, 1, len(self.precalc_dist[0].flatten())) 
-        new_weight = np.array(sorted(zip(new_weight, min_pos_list), key=lambda x: x[1])).T[0].T
-        print(np.shape(new_weight), np.shape(self.loc_weights))
-        self.loc_weights = new_weight + self.loc_weights
-        print(f"weight after update {self.loc_weights[0]}")
 
-    def get_loc(self, sensor_data, return_list=0):
+    def get_loc(self, sensor_data, return_list=1):
         """
         Get the closest position in the room to sensor data
         :param sensor_data: Measured sensor data
         :param return_list: If true returns while list, else just returns best 10 fitting positions
         """
         positions, distances, angles = self.precalc_dist
-        print(f"shape possible positions: {np.shape(positions)}")
-        print(f"shape possible distances: {np.shape(distances)}")
-        t_1 = time.time()
-        dist_from_sim = np.linalg.norm((distances - sensor_data[0]).T[:3].T, axis=1)
-        print(np.shape(dist_from_sim))
+        print(distances[0])
+        #print(f"shape possible positions: {np.shape(positions)}")
+        #print(f"shape possible distances: {np.shape(distances)}")
+        #print(distances[0], sensor_data[0], (distances-sensor_data[0])[0])
+        dist_from_sim = np.linalg.norm((distances - sensor_data), axis=1)
+        #print(np.shape(dist_from_sim))
         #dist_from_sim = np.array([np.linalg.norm(sensor_data[0][:3]-x[:3]) for x in distances])
         #min_ind = np.where(dist_from_sim == np.min(dist_from_sim))[0][0]
         min_pos_list = []
         sorted_ind = sorted(enumerate(dist_from_sim), key = lambda x: x[1])
         if return_list:
             return sorted_ind
-        print(np.shape(sorted_ind))
+        #print(np.shape(sorted_ind))
         for mind_numb in range(10):
             min_ind = np.where(dist_from_sim == np.min(dist_from_sim))[0][0]
             dist_from_sim[min_ind] = np.infty
             min_pos_list.append([positions[min_ind%len(positions)], distances[min_ind], angles[min_ind//len(positions)]])
-        print(f"Localization took {time.time()-t_1} seconds")
         return min_pos_list
     
     def get_pos_from_ind(self, ind):
@@ -147,8 +139,33 @@ class RobotLocator:
         Return x,y coordinates of position with index ind
         :param ind: Index of position
         """
-        return positions[ind%len(positions)]
+        state = np.concatenate((self.precalc_dist[0][ind%len(self.precalc_dist[0])], [self.precalc_dist[2][ind//len(self.precalc_dist[0])]]))
+        return state
     
+    def estimate_pos(self, sens_data):
+        self.update_weights(self.get_loc(sens_data))
+        self.pos_believe= self.get_pos_from_ind(np.argmax(self.loc_weights))
+        return self.pos_believe
+
+    def update_weights(self, min_pos_list):
+        """
+        Each location is a asigned a weitght based on the last measured sensor data, this function updates that list
+        :param min_pos_list: List with possible positions ordered according to euclidean distance to measurement
+        """
+        #print(f"SHape min_pos_lsit: {np.shape(min_pos_list)}")
+        min_pos_list = (np.array(min_pos_list).T[0].T).astype(int)
+        #print(f"SHape min_pos_lsit: {np.shape(min_pos_list)}")
+        print(f"Pos believe: {self.pos_believe[:2]}")
+        new_weight = np.linspace(1,-1, len(min_pos_list)) 
+        new_weight[:500] = new_weight[:500]**2
+        dist_100toLast = np.linalg.norm(np.array([self.get_pos_from_ind(x)[:2] for x in min_pos_list[:100]])- self.pos_believe[:2], axis=1)
+        #print(f"100 dist to last predict shape {np.shape(dist_100toLast)}, first: {dist_100toLast[0]}")
+        min_pos_list[:100] = np.array(sorted(zip(dist_100toLast, min_pos_list), key=lambda x:x[0])).T[1].T
+        new_est_sorted = np.array(sorted(zip(new_weight, min_pos_list), key=lambda x: x[1])).T[0].T
+        self.loc_weights = 0.5* new_est_sorted + self.loc_weights
+        #self.loc_weights = new_weight + self.loc_weights
+        #print(f"weight after update {self.loc_weights[0]}")
+
     def plot_pos_dist(self, state):
         """
         Plot a position in the room
@@ -164,17 +181,21 @@ class RobotLocator:
         plt.scatter(point[0]+dist_list[0], point[1])
         plt.scatter(point[0]+dist_list[2], point[1])
         plt.scatter(point[0], point[1]+dist_list[1])
-        plt.scatter(point[0], point[1]+dist_list[3])
+        #plt.scatter(point[0], point[1]+dist_list[3])
 
 if __name__ == "__main__":
     rb_loc = RobotLocator() 
-    test_angle = 45
-    positions, distances = rb_loc.calc_dist(10, [test_angle])
-    res = rb_loc.get_loc(distances[0][4:5], return_list=1)
-    #rb_loc.update_weights(res)
-    print(res[0][0])
-    print(rb_loc.get_pos_from_ind(res[0][0]))
-    rb_loc.plot_pos_dist(res[0])
-    #rb_loc.plot_pos_dist([positions[4], distances[0][4], test_angle])
-    plt.show()
+    test_angle = 0
+    positions, distances = rb_loc.calc_dist(100, [test_angle])
+    t0 = time.time()
+    res = rb_loc.get_loc(distances[0][4][:3], return_list=1)
+    rb_loc.update_weights(res)
+    print(res[2])
+    #print(rb_loc.get_pos_from_ind(res[0][0]))
+    print(f"Location took {time.time()-t0} seconds")
+    rb_loc.create_precalc_dist()
+    #rb_loc.plot_pos_dist(res[2])
+    #rb_loc.plot_pos_dist([positions[4], distances[0][4][:3], test_angle])
+    #plt.show()
+
     
