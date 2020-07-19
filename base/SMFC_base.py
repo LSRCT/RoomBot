@@ -2,7 +2,6 @@ import time
 import os, sys
 import socket
 import numpy as np
-from RB_nav import RobotLocator
 
 class SMFCBase:
     def __init__(self, ip, port=9999):
@@ -14,7 +13,6 @@ class SMFCBase:
         self.websocket.bind((ip, port))
         self.back_count = 0
         self.logfile = 0
-        self.rb_locator = RobotLocator()
 
     def __del__(self):
         self.websocket.close()
@@ -52,13 +50,9 @@ class SMFCBase:
         dist1 = (int(data_rcv[0:4], 16))/10
         dist2 = (int(data_rcv[4:8], 16))/10
         dist3 = (int(data_rcv[8:12], 16))/10
-        pos_believ = 
         ins = self.handle_locdata(dist1, dist2, dist3)
-        #ins = b"2"
         request.send(ins)
-        rb_locator.update_weights(rb_locator.get_loc([dist1,dist2, dist3, 0])
-        print(rb_locator.get_pos_from_ind(np.argmax(rb_locator.loc_weights)))
-        #self.savelocdata(dist1, dist2, dist3, ins)
+        self.savelocdata(dist1, dist2, dist3, ins)
         print(dist1, dist2, dist3)
         request.close()
 
