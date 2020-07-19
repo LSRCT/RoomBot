@@ -1,4 +1,4 @@
-from RB_nav import RobotLocator
+from RobotLocator import RobotLocator
 import matplotlib.pyplot as plt
 import numpy as np
 
@@ -21,13 +21,12 @@ class RBLocTester:
         est = []
         for data_numb, data in enumerate(self.sdat_list[datslice]):
             if data_numb%100 == 0:
-                print(data)
                 print(f"Estimated {data_numb} locations")
             est.append(np.concatenate((self.rl.estimate_pos([data[1]+12, data[0]+12, data[2]+12]), [data_numb])))
+            print(est[-1])
         est = np.array(est)
         self.datarange = datslice
         self.est_pos = est
-        print(self.est_pos)
         return self.est_pos
 
     def plot_est_pos(self):
