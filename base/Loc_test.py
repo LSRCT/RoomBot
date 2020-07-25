@@ -2,15 +2,13 @@ from RobotLocator import RobotLocator
 from scipy.ndimage import uniform_filter
 import matplotlib.pyplot as plt
 import numpy as np
-import matplotlib
-matplotlib.use("TkAgg")
 
 class RBLocTester:
     def __init__(self, logfile):
         self.sdat_list = self.load_loc_data(logfile)
         self.rl = RobotLocator()
         self.map_room = self.rl.img_room
-        self.prob_dist = self.rl.loc_weights[0]
+        self.prob_dist = []
 
     def load_loc_data(self, logfile):
         sdat_list = []
@@ -29,18 +27,32 @@ class RBLocTester:
         for data_numb, data in enumerate(self.sdat_list[datslice]):
             if data_numb%100 == 0:
                 print(f"Estimated {data_numb} locations")
-            est.append(self.rl.estimate_pos([data[1]+5, data[0]+5, data[2]+5]))
-            self.prob_dist = self.rl.loc_weights[0] + self.prob_dist
+            for noisy_sens in self.apply_noise(data[1]+12, data[0]+12, data[2]+12):
+                est.append(self.rl.estimate_pos(noisy_sens))
+            #est.append(self.rl.estimate_pos([data[1]+12, data[0]+12, data[2]+12]))
+            self.prob_dist.append(self.rl.loc_weights[0])
         est = np.array(est)
         self.est_pos = est
         return self.est_pos
 
+    def apply_noise(self, x,y,z):
+        return [[x,y,z]]
+        new_coords = []
+        noiserange = np.linspace(-0.5,0.5,3)
+        print(noiserange)
+        for noise_x in noiserange:
+            for noise_y in noiserange:
+                for noise_z in noiserange:
+                    new_coords.append([x+noise_x, y+noise_y, z+noise_z])
+        return new_coords
+
     def plot_est_prob(self):
         #pos = np.array(list(self.rl.precalc_dist[0])*36)
-        pos = np.concatenate(np.repeat([self.rl.precalc_dist[0]], 35, axis=0))
-        print(set(list(self.rl.precalc_dist[2])))
+        #pos = np.concatenate(np.repeat([self.rl.precalc_dist[0]], 35, axis=0))
+        pos = self.rl.precalc_dist[0]
         map_room = np.asarray(self.map_room)
         map_room = np.abs(np.round(map_room, 1)-255)*255
+        self.prob_dist = np.sum(self.prob_dist[10:], axis=0)
         print(np.sum(self.prob_dist))
         ##self.prob_dist = self.prob_dist[:len(pos)]
         print(np.shape(self.prob_dist), np.shape(pos))
@@ -53,13 +65,14 @@ class RBLocTester:
         
     def plot_est_pos(self):
         plt.matshow(self.map_room)
+        #self.est_pos=self.rl.precalc_dist[0]
         plt.scatter(self.est_pos[:,1], self.est_pos[:,0])
         plt.show()
 
-dslice = slice(1900, 1950)
+dslice = slice(2900, 3050)
 est = []
 rbtest = RBLocTester("rb_datalog.csv") 
 #rbtest.preprocess_locdata()
 rbtest.estloc_datarange(dslice)
-#urbtest.plot_est_pos()
+rbtest.plot_est_pos()
 rbtest.plot_est_prob()
