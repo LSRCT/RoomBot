@@ -17,7 +17,7 @@ class RobotLocator:
     
     def load_precalc_dist(self):
         """ Load precalculated distances for a number of points from a pickle file"""
-        pcdist = pickle.load(open("precalc_distances//precalc_dist_Map5.p", "rb"))
+        pcdist = pickle.load(open("precalc_distances//precalc_map5_5000.p", "rb"))
         return pcdist
 
     def calc_dist_list(self, sensor_data, return_list=1):
@@ -26,15 +26,16 @@ class RobotLocator:
         :param sensor_data: Measured sensor data
         :param return_list: If true returns while list, else just returns best 10 fitting positions
         """
-        positions, distances, angles = self.precalc_dist
-        self.dist_list = distance.cdist([sensor_data], distances, metric="mahalanobis")
+        positions, distances = self.precalc_dist
+        self.dist_list = distance.cdist([sensor_data], distances, metric="euclidean")
 
     def get_pos_from_ind(self, ind):
         """
         Return x,y coordinates of position with index ind
         :param ind: Index of position
         """
-        state = np.concatenate((self.precalc_dist[0][ind%len(self.precalc_dist[0])], [self.precalc_dist[2][ind//len(self.precalc_dist[0])]]))
+        #state = np.concatenate((self.precalc_dist[0][ind%len(self.precalc_dist[0])], [self.precalc_dist[2][ind//len(self.precalc_dist[0])]]))
+        state = self.precalc_dist[0][ind]
         return state
     
     def estimate_pos(self, sens_data):
@@ -52,9 +53,10 @@ class RobotLocator:
     def update_weights(self):
         # Bel(x) = alpha*P(s|x)*Bel(x)
         #  this is P(s|x)
-        dist_similarity = 1/(1+self.dist_list)
+        dist_similarity = 1/(1+self.dist_list/np.max(self.dist_list))
         # update believe
         self.loc_weights = dist_similarity*self.loc_weights
+        print(np.max(self.loc_weights))
         # alpha to make it integrate to 1
         self.loc_weights = self.loc_weights/(np.sum(self.loc_weights))
         print(np.max(self.loc_weights))

@@ -5,6 +5,13 @@ import time
 from PIL import Image
 import matplotlib.pyplot as plt
 from scipy import optimize
+import multiprocessing
+from functools import partial
+from itertools import repeat
+rbm = None
+
+def run(locations, angle):
+    return rbm.calc_all_rot(locations, angle)
 
 class RBMapCalculator:
     def __init__(self,RoomPng):
@@ -22,13 +29,15 @@ class RBMapCalculator:
         else:
             fname = filename
         
-        angles = list(range(0,360,10))
+        angles = list(range(0,360,5))
         positions, distances = self.calc_dist(1000, angles)
         positions = np.array(list(positions))
         distances = np.concatenate(distances, axis=0)
-        pickle.dump([positions, distances, angles], open(fname, "wb"))
+        print(f"shape pos: {np.shape(positions)}, shape dist {np.shape(distances)}")
+        savename = "precalc_"+fname.split("/")[-1]
+        pickle.dump([positions, distances], open(savename, "wb"))
         
-        print(f"Done. saving as {fname}")
+        print(f"Done. saving as {savename}")
 
     def calc_dist(self, grid_points, angles):
         """
@@ -36,21 +45,41 @@ class RBMapCalculator:
         :param grid_points: Number of points the grid of the room should have
         :param angles: Angles for each points
         """
-        valid_positions = self.get_valid_positions()
-        valid_positions = valid_positions[::((len(valid_positions)-1)//grid_points)]
+        valid_xy = self.get_valid_positions()
+        print(f"shape valid positions: {np.shape(valid_xy)}")
+        #valid_xy = np.array(valid_xy[::((len(valid_xy)-1)//grid_points)])
         distances_rot = []
+        pos_xyphi_all = []
         for phi in angles:
-            distances_rot.append(self.calc_all_rot(valid_positions, phi))
-        return valid_positions, distances_rot
+            pos_xyphi = np.concatenate((valid_xy, np.repeat(np.array([[phi]]), len(valid_xy), axis=0)), axis=1)
+            pos_xyphi_all.append(pos_xyphi)
+            #distances_rot.append(self.calc_all_rot(valid_xy, phi))
+        with multiprocessing.Pool(processes=16) as pool:
+            distances_rot = pool.starmap(run, zip(repeat(valid_xy),angles))
+        pos_xyphi_all = np.concatenate(pos_xyphi_all)
+        #print(f"shape xyphi: {pos_xyphi}")
+        return pos_xyphi_all, distances_rot
 
-    def get_valid_positions(self):
+    def get_valid_positions(self, pos_min_dist=5):
         """
         Return the pixels of self.img_room inside the room
         """
+        every_nth_point = pos_min_dist
         map_room = np.asarray(self.img_room)
         map_room = (np.round(map_room/255, 1))
         v_positions = np.array(np.where(map_room == 1)).T
-        return v_positions
+        v_pos_list = [list(x) for x in list(v_positions)]
+        valid_grid = []
+        x = 0
+        while x < np.shape(map_room)[0]:
+            y = 0
+            while y < np.shape(map_room)[1]:
+                print(x,y)
+                if map_room[x][y] == 1:
+                    valid_grid.append([x,y])
+                y += every_nth_point
+            x += every_nth_point
+        return valid_grid
 
     def calc_all_rot(self, locations, angle):
         """
