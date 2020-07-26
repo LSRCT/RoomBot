@@ -1,5 +1,5 @@
 from RobotLocator import RobotLocator
-from scipy.ndimage import uniform_filter
+from scipy.ndimage import uniform_filter1d
 import matplotlib.pyplot as plt
 import numpy as np
 
@@ -20,14 +20,20 @@ class RBLocTester:
 
     def preprocess_locdata(self):
         n = len(self.sdat_list)
-        self.sdat_list = uniform_filter(self.sdat_list, size=10)
+        self.sdat_list = np.array(self.sdat_list).T
+        #self.sdat_list = uniform_filter1d(self.sdat_list, size=100, axis=0)
+        self.sdat_list[0][5:] = winAvg(self.sdat_list[0], winWidth=20)[5:]
+        self.sdat_list[1][5:] = winAvg(self.sdat_list[1], winWidth=20)[5:]
+        self.sdat_list[2][5:] = winAvg(self.sdat_list[2], winWidth=20)[5:]
+        print(len(self.sdat_list))
+        self.sdat_list = np.array(self.sdat_list).T
 
     def estloc_datarange(self, datslice):
         est = []
         for data_numb, data in enumerate(self.sdat_list[datslice]):
             if data_numb%100 == 0:
                 print(f"Estimated {data_numb} locations")
-            for noisy_sens in self.apply_noise(data[1]+12, data[0]+12, data[2]+12):
+            for noisy_sens in self.apply_noise(data[1]+10, data[0]+10, data[2]+10):
                 est.append(self.rl.estimate_pos(noisy_sens))
             #est.append(self.rl.estimate_pos([data[1]+12, data[0]+12, data[2]+12]))
             self.prob_dist.append(self.rl.loc_weights[0])
@@ -52,27 +58,44 @@ class RBLocTester:
         pos = self.rl.precalc_dist[0]
         map_room = np.asarray(self.map_room)
         map_room = np.abs(np.round(map_room, 1)-255)*255
-        self.prob_dist = np.sum(self.prob_dist[10:], axis=0)
+        self.prob_dist = np.sum(self.prob_dist, axis=0)
         print(np.sum(self.prob_dist))
         ##self.prob_dist = self.prob_dist[:len(pos)]
         print(np.shape(self.prob_dist), np.shape(pos))
         for coord, prob in zip(pos, self.prob_dist):
-            map_room[coord[0]][coord[1]] += prob*255*2
+            map_room[coord[0]][coord[1]] += prob*255*2*2
         plt.matshow(map_room)
         
         plt.show()
-        
+
+    def plot_raw(self, datslice):
+        plt.plot(self.sdat_list[datslice])
+        plt.show()
         
     def plot_est_pos(self):
         plt.matshow(self.map_room)
         #self.est_pos=self.rl.precalc_dist[0]
-        plt.scatter(self.est_pos[:,1], self.est_pos[:,0])
+        plt.plot(self.est_pos[:,1], self.est_pos[:,0])
         plt.show()
 
-dslice = slice(2900, 3050)
+
+def winAvg(data, winWidth=0, winfunc=np.blackman, mode="same"):
+    if not winWidth:
+        if int(len(data)*(5/100))>0:
+            winWidth = int(len(data)*(5/100))
+        else: return data
+    if not winWidth % 2:
+        winWidth += 1
+    kernel = winfunc(winWidth)/np.sum(winfunc(winWidth))
+    data = np.convolve(data, kernel, mode=mode)
+    return data
+
+#dslice = slice(500, 3000)
+dslice = slice(0, 50)
 est = []
-rbtest = RBLocTester("rb_datalog.csv") 
-#rbtest.preprocess_locdata()
+rbtest = RBLocTester("rb_datalog_bed.csv")
+rbtest.preprocess_locdata()
+rbtest.plot_raw(dslice)
 rbtest.estloc_datarange(dslice)
 rbtest.plot_est_pos()
 rbtest.plot_est_prob()
