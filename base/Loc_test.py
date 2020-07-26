@@ -33,7 +33,7 @@ class RBLocTester:
         for data_numb, data in enumerate(self.sdat_list[datslice]):
             if data_numb%100 == 0:
                 print(f"Estimated {data_numb} locations")
-            for noisy_sens in self.apply_noise(data[1]+10, data[0]+10, data[2]+10):
+            for noisy_sens in self.apply_noise(data[1]+11, data[0]+11, data[2]+11):
                 est.append(self.rl.estimate_pos(noisy_sens))
             #est.append(self.rl.estimate_pos([data[1]+12, data[0]+12, data[2]+12]))
             self.prob_dist.append(self.rl.loc_weights[0])
@@ -53,17 +53,17 @@ class RBLocTester:
         return new_coords
 
     def plot_est_prob(self):
-        #pos = np.array(list(self.rl.precalc_dist[0])*36)
-        #pos = np.concatenate(np.repeat([self.rl.precalc_dist[0]], 35, axis=0))
         pos = self.rl.precalc_dist[0]
         map_room = np.asarray(self.map_room)
         map_room = np.abs(np.round(map_room, 1)-255)*255
         self.prob_dist = np.sum(self.prob_dist, axis=0)
+        self.prob_dist = (self.prob_dist/np.max(self.prob_dist))*10
         print(np.sum(self.prob_dist))
-        ##self.prob_dist = self.prob_dist[:len(pos)]
+        #self.prob_dist = self.prob_dist[:len(pos)]
         print(np.shape(self.prob_dist), np.shape(pos))
+        bs= 2 # blobsize
         for coord, prob in zip(pos, self.prob_dist):
-            map_room[coord[0]][coord[1]] += prob*255*2*2
+            map_room[coord[0]-bs:coord[0]+bs+1, coord[1]-bs:coord[1]+bs+1] += np.ones(((bs*2)+1,(bs*2)+1), dtype=np.uint8)* np.uint8(prob)
         plt.matshow(map_room)
         
         plt.show()
@@ -75,7 +75,7 @@ class RBLocTester:
     def plot_est_pos(self):
         plt.matshow(self.map_room)
         #self.est_pos=self.rl.precalc_dist[0]
-        plt.plot(self.est_pos[:,1], self.est_pos[:,0])
+        plt.scatter(self.est_pos[:,1], self.est_pos[:,0])
         plt.show()
 
 
@@ -91,7 +91,7 @@ def winAvg(data, winWidth=0, winfunc=np.blackman, mode="same"):
     return data
 
 #dslice = slice(500, 3000)
-dslice = slice(0, 50)
+dslice = slice(10, 90)
 est = []
 rbtest = RBLocTester("rb_datalog_bed.csv")
 rbtest.preprocess_locdata()
