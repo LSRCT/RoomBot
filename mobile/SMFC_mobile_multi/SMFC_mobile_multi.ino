@@ -1,8 +1,9 @@
 #include <ESP8266WiFi.h>
 #include <PubSubClient.h>
 #include <arduino.h>
-//#include <HCSR04.h>
 #include "USDS.h"
+#include <MPU9250_asukiaaa.h>
+
 
 // PIN constants to avoid confusion
 static const uint8_t D0   = 16;
@@ -17,6 +18,16 @@ static const uint8_t D8   = 15;
 static const uint8_t D9   = 3;
 static const uint8_t D10 = 1;
 
+#define SDA_PIN D4
+#define SCL_PIN D5
+#define DRIVE_PIN D8
+
+//imu
+MPU9250_asukiaaa IMU;
+float mX, mY, mZ;
+byte magXY[4] = {0};
+
+
 // robot control
 void exec_ins(int *);
 int ins = 0;
@@ -27,7 +38,16 @@ const char* password = "83067046472468411597";
 const char* MQTT_BROKER = "192.168.178.27";
 const char* host = "192.168.178.20";
 const uint16_t port = 9999;
-void connect_wifi();
+
+
+// setup functions
+void setupWifi();
+void setupIMU();
+void setupMotor();
+void setupMQTT();
+void publish_mag();
+
+// MQTT stuff
 void reconnectMQTT();
 void callback(char*, byte*, unsigned int);
 WiFiClient espClient;
@@ -35,19 +55,14 @@ PubSubClient MQTTclient(espClient);
 
 // Sensor stuff
 // trigger, echo, trigger2, echo2,...
-USDS distSensor(D2, D1, D3, D0, D5, D6);
-
-
+USDS distSensor(D2, D1, D3, D0, D7, D6);
 
 void setup() {
   Serial.begin(115200);
-  connect_wifi();
-  MQTTclient.setServer(MQTT_BROKER, 1883);
-  MQTTclient.setCallback(callback);
-  pinMode(D7, OUTPUT);
-  pinMode(D8, OUTPUT);
-  digitalWrite(D7, HIGH);
-  digitalWrite(D8, HIGH);
+  setupIMU();
+  setupWifi();
+  setupMQTT();
+  setupMotor();
 }
 
 void reconnectMQTT() {
@@ -65,46 +80,23 @@ void reconnectMQTT() {
     Serial.println("MQTT Connected...");
 }
 
-void loop() {
-  if (!MQTTclient.connected()) {
-        reconnectMQTT();
-  }
-  MQTTclient.loop();
-  distSensor.getDist();
-  Serial.println(distSensor.dist);
-  MQTTclient.publish("RR/sensors", distSensor.dist, 6);
-  delay(90);
+void setupMQTT(){
+  MQTTclient.setServer(MQTT_BROKER, 1883);
+  MQTTclient.setCallback(callback);
 }
 
-
-void callback(char* topic, byte* payload, unsigned int length) {
-  Serial.print("Message arrived");
-  Serial.println(String(topic));
-  if (String(topic) == "RR/driveIns"){
-    ins = payload[0];
-    //Serial.println(ins);
-    exec_ins(&ins);
+void setupMotor(){
+  pinMode(DRIVE_PIN, OUTPUT);
+  digitalWrite(DRIVE_PIN, HIGH);
   }
+
+void setupIMU(){
+  Wire.begin(SDA_PIN, SCL_PIN);
+  IMU.setWire(&Wire);
+  IMU.beginMag(MAG_MODE_CONTINUOUS_100HZ);
 }
 
-
-void exec_ins(int *ins){
-  if (*ins == 48){
-    digitalWrite(D7, HIGH);
-    digitalWrite(D8, HIGH);
-    }
-    if (*ins == 49){
-    digitalWrite(D7, LOW);
-    digitalWrite(D8, HIGH);
-    }
-   if (*ins == 50){
-    digitalWrite(D7, HIGH);
-    digitalWrite(D8, LOW);
-    }
-   Serial.println(*ins);
-  }
-
-void connect_wifi(){
+void setupWifi(){
   Serial.println();
   Serial.print("Connecting to ");
   Serial.println(ssid);
@@ -120,5 +112,65 @@ void connect_wifi(){
   Serial.println("");
   Serial.println("WiFi connected");  
   }
+  
+void loop() {
+  if (!MQTTclient.connected()) {
+        reconnectMQTT();
+  }
+  MQTTclient.loop();
+  distSensor.getDist();
+  MQTTclient.publish("RR/sensors", distSensor.dist, 6);
+  publish_mag();
+}
+
+void publish_mag(){
+  /*
+   *Publish magnetometer X and Y to "RR/magnetometer"
+   *Encoded as 4 bytes, offset so its not negative
+   *Averages over 100 ms -> this function takes 100 ms
+  */
+  mX = 0;
+  mY = 0;
+  // avg over 100 ms
+  for(int i=0; i<10;i++){
+    IMU.magUpdate();
+    //mX += IMU.magHorizDirection()+180;
+    mX += IMU.magX();
+    mY += IMU.magY();
+    delay(10);
+    }
+  // make sure its not negativem 200 is arbitrary
+  mY = (mY)+2000;
+  mX = (mX)+2000;
+  magXY[0] = int(mX)>> 8;
+  magXY[1] = int(mX);
+  magXY[2] = int(mY)>> 8;
+  magXY[3] = int(mY);
+  MQTTclient.publish("RR/magnetometer", magXY, 4);
+  }
+
+
+void callback(char* topic, byte* payload, unsigned int length) {
+  Serial.print("Message arrived");
+  Serial.println(String(topic));
+  if (String(topic) == "RR/driveIns"){
+    ins = payload[0];
+    exec_ins(&ins);
+  }
+}
+
+
+void exec_ins(int *ins){
+  if (*ins == 48){
+    digitalWrite(DRIVE_PIN, HIGH);
+    }
+    if (*ins == 49){
+    digitalWrite(DRIVE_PIN, LOW);
+    }
+   if (*ins == 50){
+    digitalWrite(DRIVE_PIN, HIGH);
+    }
+  }
+
 
   
