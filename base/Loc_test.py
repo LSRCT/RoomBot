@@ -16,7 +16,7 @@ class RBLocTester:
         with open(logfile, "r") as f:
             for line in f:
                 if line[0] != "t":
-                    sdat_list.append([float(x) for x in line.split(";")[1:4]])
+                    sdat_list.append([float(x) for x in line.split(";")[1:5]])
         return sdat_list
 
     def preprocess_locdata(self):
@@ -26,6 +26,7 @@ class RBLocTester:
         self.sdat_list[0][5:] = winAvg(self.sdat_list[0], winWidth=10)[5:]
         self.sdat_list[1][5:] = winAvg(self.sdat_list[1], winWidth=10)[5:]
         self.sdat_list[2][5:] = winAvg(self.sdat_list[2], winWidth=10)[5:]
+        #self.sdat_list[3][5:] = winAvg(self.sdat_list[3], winWidth=10)[5:]
         print(len(self.sdat_list))
         self.sdat_list = np.array(self.sdat_list).T
 
@@ -35,7 +36,7 @@ class RBLocTester:
         for data_numb, data in enumerate(self.sdat_list[datslice]):
             if data_numb%100 == 0:
                 print(f"Estimated {data_numb} locations")
-            for noisy_sens in self.apply_noise(data[1]+11, data[0]+11, data[2]+11):
+            for noisy_sens in self.apply_noise(data[1]+11, data[0]+11, data[2]+11, data[3]):
                 est.append(self.rl.estimate_pos(noisy_sens))
             #est.append(self.rl.estimate_pos([data[1]+12, data[0]+12, data[2]+12]))
             l_w = np.sum(np.reshape(self.rl.loc_weights, rshap), axis=0)
@@ -45,8 +46,8 @@ class RBLocTester:
         self.est_pos = est
         return self.est_pos
 
-    def apply_noise(self, x,y,z):
-        return [[x,y,z]]
+    def apply_noise(self, x,y,z, phi):
+        return [[x,y,z, phi]]
         new_coords = []
         noiserange = np.linspace(-0.5,0.5,3)
         print(noiserange)
@@ -63,12 +64,12 @@ class RBLocTester:
         map_room = np.asarray(self.map_room)
         map_room = np.abs(np.round(map_room, 1)-255)*255
         for data_numb, data in enumerate(self.sdat_list[datslice]):
-            self.rl.estimate_pos([data[1]+11, data[0]+11, data[2]+11])
+            self.rl.estimate_pos([data[1]+11, data[0]+11, data[2]+11, data[3]])
             l_w = np.sum(np.reshape(self.rl.loc_weights, rshap), axis=0)
             prob = (l_w/np.max(l_w))*255
             bs= 2 # blobsize
-            for coord, prob in zip(pos, prob):
-                map_room[coord[0]-bs:coord[0]+bs+1, coord[1]-bs:coord[1]+bs+1] = np.ones(((bs*2)+1,(bs*2)+1), dtype=np.uint8)* np.uint8(prob)
+            for coord, p in zip(pos, prob):
+                map_room[coord[0]-bs:coord[0]+bs+1, coord[1]-bs:coord[1]+bs+1] = np.ones(((bs*2)+1,(bs*2)+1), dtype=np.uint8)* np.uint8(p)
             map_room_crop = map_room[550:1000, 650:1250]
             cv2.imshow('Frame', map_room_crop)
             if cv2.waitKey(2) & 0xFF == ord("q"):
@@ -116,9 +117,9 @@ def winAvg(data, winWidth=0, winfunc=np.blackman, mode="same"):
     return data
 
 #dslice = slice(500, 3000)
-dslice = slice(4000, 5000)
+dslice = slice(0, 280)
 est = []
-rbtest = RBLocTester("rb_datalog.csv")
+rbtest = RBLocTester("rb_datalog_phi.csv")
 rbtest.preprocess_locdata()
 rbtest.est_prob_video(dslice)
 #rbtest.plot_raw(dslice)
