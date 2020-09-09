@@ -1,6 +1,8 @@
 #include <ESP8266WiFi.h>
+#include <PubSubClient.h>
 #include <arduino.h>
-//#include <HCSR04.h>
+#include "USDS.h"
+
 
 // PIN constants to avoid confusion
 static const uint8_t D0   = 16;
@@ -15,69 +17,67 @@ static const uint8_t D8   = 15;
 static const uint8_t D9   = 3;
 static const uint8_t D10 = 1;
 
+#define DRIVE_PIN D8
+
+
+// robot control
+void exec_ins(int *);
 int ins = 0;
 
 // Wifi variables
 const char* ssid     = "LSRCT";
 const char* password = "83067046472468411597";
-const char* host = "192.168.178.27";
-const uint16_t port = 9999;
-void connect_wifi();
-void exec_ins(int *);
+const char* MQTT_BROKER = "192.168.178.27";
 
-int measureDistanceCm(const uint8_t *, const uint8_t *);
 
-//UltraSonicDistanceSensor distanceSensor_1(D1, D2);
-//String s1name = "S1;";
-//UltraSonicDistanceSensor distanceSensor_2(D5, D6);
-//String s2name = "S2;";
-WiFiClient client;
+// setup functions
+void setupWifi();
+void setupMotor();
+void setupMQTT();
+
+// MQTT stuff
+void reconnectMQTT();
+void callback(char*, byte*, unsigned int);
+WiFiClient espClient;
+PubSubClient MQTTclient(espClient);
+
+// Sensor stuff
+// trigger, echo, trigger2, echo2,...
+USDS distSensor(D2, D1);
 
 void setup() {
-  pinMode(D5, OUTPUT);
-  pinMode(D6, INPUT);
   Serial.begin(115200);
-  connect_wifi();
-  pinMode(D7, OUTPUT);
-  pinMode(D8, OUTPUT);
-  digitalWrite(D7, HIGH);
-  digitalWrite(D8, HIGH);
+  setupWifi();
+  setupMQTT();
+  setupMotor();
 }
 
-void loop() {
-  if (client.connect(host, port)) {
-      //client.print(s1name+distanceSensor_1.measureDistanceCm());
-      //client.print(distanceSensor_2.measureDistanceCm());
-      client.println(measureDistanceCm(&D5,&D6));
-      delay(10);
-      while (client.available()) {
-        ins = static_cast<int>(client.read());
-        exec_ins(&ins);
-      delay(90);
-      //client.print(5);
-      client.flush();}
-  } else {
-  Serial.println("connection failed, trying again in 1 second");
-  delay(1000);}
+void reconnectMQTT() {
+    while (!MQTTclient.connected()) {
+        Serial.println("Reconnecting MQTT...");
+        if (!MQTTclient.connect("ESP8266Client_drive")) {
+            Serial.print("failed, rc=");
+            Serial.print(MQTTclient.state());
+            Serial.println(" retrying in 5 seconds");
+            delay(5000);
+        } else {
+          MQTTclient.subscribe("RR/driveIns");
+          }
+        }
+    Serial.println("MQTT Connected...");
 }
 
-void exec_ins(int *ins){
-  if (*ins == 48){
-    digitalWrite(D7, HIGH);
-    digitalWrite(D8, HIGH);
-    }
-    if (*ins == 49){
-    digitalWrite(D7, LOW);
-    digitalWrite(D8, HIGH);
-    }
-   if (*ins == 50){
-    digitalWrite(D7, HIGH);
-    digitalWrite(D8, LOW);
-    }
-  Serial.print(*ins);
+void setupMQTT(){
+  MQTTclient.setServer(MQTT_BROKER, 1883);
+  MQTTclient.setCallback(callback);
+}
+
+void setupMotor(){
+  pinMode(DRIVE_PIN, OUTPUT);
+  digitalWrite(DRIVE_PIN, HIGH);
   }
 
-void connect_wifi(){
+void setupWifi(){
   Serial.println();
   Serial.print("Connecting to ");
   Serial.println(ssid);
@@ -93,24 +93,40 @@ void connect_wifi(){
   Serial.println("");
   Serial.println("WiFi connected");  
   }
-
-int measureDistanceCm(const uint8_t *triggerPin, const uint8_t *echoPin) {
-    // Make sure that trigger pin is LOW.
-    digitalWrite(*triggerPin, LOW);
-    delayMicroseconds(2);
-    // Hold trigger for 10 microseconds, which is signal for sensor to measure distance.
-    digitalWrite(*triggerPin, HIGH);
-    delayMicroseconds(10);
-    digitalWrite(*triggerPin, LOW);
-    // Measure the length of echo signal, which is equal to the time needed for sound to go there and back.
-    double durationMicroSec = (double)(pulseIn(*echoPin, HIGH));
-
-    double speedOfSoundInCmPerMs = 0.03313 + 0.0000606 * 22.0; // Cair ≈ (331.3 + 0.606 ⋅ ϑ) m/s
-    double distanceCm = durationMicroSec / 2.0 * speedOfSoundInCmPerMs;
-    if (distanceCm > 500) {
-        return 5000.0;
-    } else {
-        return distanceCm*10.0;
-    }
+  
+void loop() {
+  if (!MQTTclient.connected()) {
+        reconnectMQTT();
+  }
+  MQTTclient.loop();
+  distSensor.getDist();
+  MQTTclient.publish("RR/sensors", distSensor.dist, 6);
+  delay(90);
 }
+
+
+
+void callback(char* topic, byte* payload, unsigned int length) {
+  Serial.print("Message arrived");
+  Serial.println(String(topic));
+  if (String(topic) == "RR/driveIns"){
+    ins = payload[0];
+    exec_ins(&ins);
+  }
+}
+
+
+void exec_ins(int *ins){
+  if (*ins == 48){
+    digitalWrite(DRIVE_PIN, HIGH);
+    }
+    if (*ins == 49){
+    digitalWrite(DRIVE_PIN, LOW);
+    }
+   if (*ins == 50){
+    digitalWrite(DRIVE_PIN, HIGH);
+    }
+  }
+
+
   
