@@ -60,10 +60,10 @@ class SMFCBase(mqtt.Client):
             fwd = 0
         elif key == "s":
             fwd = -1
-        elif key == "a":
+        elif key == "d":
             l = 0
             r = 1024
-        elif key == "d":
+        elif key == "a":
             r = 0
             l = 1024
         self.wasd = [fwd, 0, 0]
