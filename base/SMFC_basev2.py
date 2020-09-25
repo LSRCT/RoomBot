@@ -17,7 +17,7 @@ class SMFCBase(mqtt.Client):
         self.back_count = 0
         self.logfile = 0
         self.ins_list = []
-        self.wasd = [0,0,0]
+        self.wasd = [0, 0,0,0]
 
     def __del__(self):
         if self.logfile:
@@ -50,24 +50,34 @@ class SMFCBase(mqtt.Client):
             time.sleep(0.001)
 
     def handle_keyin(self, key):
-        fwd, l, r = self.wasd
+        fwdL, fwdR, l, r = self.wasd
         print(key)
         r = 1024
-        l = 1023
+        l = 1024
         if key == "w":
-            fwd = 1
-        elif key == "s" and fwd == 1:
-            fwd = 0
+            fwdL = 1
+            fwdR = 1
+        elif key == "s" and fwdL == 1:
+            fwdL = 0
+            fwdR = 0
         elif key == "s":
-            fwd = -1
-        elif key == "d":
+            fwdR = -1
+            fwdL = -1
+        elif key == "a":
             l = 0
             r = 1024
-        elif key == "a":
+        elif key == "d":
             r = 0
             l = 1024
-        self.wasd = [fwd, 0, 0]
-        return [l*fwd, r*fwd]
+        elif key == "q":
+            fwdL = -1
+            fwdR = 1
+        elif key == "e":
+            fwdL = 1
+            fwdR = -1
+
+        self.wasd = [fwdL, fwdR, 0, 0]
+        return [l*fwdL, r*fwdR]
 
 
     def savelocdata(self, data1, data2, data3, ins):
