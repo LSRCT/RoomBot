@@ -58,7 +58,9 @@ class SMFCBase(mqtt.Client):
         if dist3 > 2000:
             dist3 = 1
         ins = self.handle_locdata(dist1, dist2, dist3)
-        self.savelocdata(dist1, dist2, dist3, self.phi_recent, ins)
+        #print(dist1, dist2, dist3, self.phi_recent)
+        print(dist1)
+        #self.savelocdata(dist1, dist2, dist3, self.phi_recent, ins)
 
     def on_message_mag(self,msg):
         """
@@ -81,13 +83,13 @@ class SMFCBase(mqtt.Client):
         phi = np.arctan2(magX, magY)*180/np.pi
 
         # make sure 0 deg is same as 0 deg on map
-        phi += 38
+        phi += 20
 
         # -180:180 -> 0:360
         if phi < 0:
             phi += 360
         self.phi_recent = phi
-        print(phi)
+        #print(phi)
 
     def serve(self):
         """
@@ -115,11 +117,7 @@ class SMFCBase(mqtt.Client):
     
     def handle_locdata(self, dat1, dat2, dat3):
         # 5 stop and go cycles -> ~180 deg turn
-        if dat2 < 40 or dat3 < 40:
-            fak = 2
-        else:
-            fak = 1
-        bc_1 = [b"0", b"0", b"1", b"1"] * fak
+        bc_1 = [b"0", b"0", b"1", b"1"]
         bc_2 = [b"0", b"1"] * 5
         bc_lookup = [b"0"] * 10 + bc_1
 
