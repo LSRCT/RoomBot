@@ -6,7 +6,7 @@ import getch
 
 
 class SMFCBase(mqtt.Client):
-    def __init__(self, ip, port=1883, manual=0):
+    def __init__(self, ip, port=1883, manual=0, log_data=0):
         """
         Init the server with port and root directory
         :param ip: IP of the mqtt broker
@@ -14,9 +14,11 @@ class SMFCBase(mqtt.Client):
         :param manual: Manual controll on/off
         """
         super().__init__(client_id="SMFC_base")
+        self.control_mode = manual 
+        self.log_data = log_data
+
         # connect to mqtt broker
         self.connect("192.168.178.27", port=port) 
-        self.control_mode = manual 
         self.loop_start()
         self.back_count = 0
         self.ins_list = []
@@ -28,14 +30,16 @@ class SMFCBase(mqtt.Client):
         self.phi_recent = 0
 
         # create a logfile if it doesnt exist
-        if not os.path.isfile("rb_datalog.csv"):
-            with open("rb_datalog.csv", "w") as lf:
-                lf.write("t;s1;s2;s3;phi;ins;\n")
-        self.logfile = open("rb_datalog.csv", "a")
+        if self.log_data_
+            if not os.path.isfile("rb_datalog.csv"):
+                with open("rb_datalog.csv", "w") as lf:
+                    lf.write("t;s1;s2;s3;phi;ins;\n")
+            self.logfile = open("rb_datalog.csv", "a")
 
     def __del__(self):
-        if self.logfile:
-            self.logfile.close()
+        if self.log_data:
+            if self.logfile:
+                self.logfile.close()
         print("Server stopped")
 
     def on_connect(self, client, userdata, flags, rc):
@@ -67,7 +71,8 @@ class SMFCBase(mqtt.Client):
         if not self.control_mode:
             self.handle_locdata(dist1, dist2, dist3)
         print(dist1, dist2, dist3)
-        #self.savelocdata(dist1, dist2, dist3, self.phi_recent, ins)
+        if self.log_data:
+            self.savelocdata(dist1, dist2, dist3, self.phi_recent, ins)
 
     def on_message_mag(self,msg):
         """
@@ -103,11 +108,13 @@ class SMFCBase(mqtt.Client):
         """
         print("Server stared")
         while 1:
+            # check for key input in manual mode
             if self.control_mode:
                 key_in = getch.getch()
                 k_ins = self.handle_keyin(key_in)
                 print(key_in)
                 self.ins_list.append(k_ins)
+            # execute instructions
             if len(self.ins_list):
                 for ins in self.ins_list:
                     self.publish("RR/driveIns", self.conv_ar_to_msg(ins))
