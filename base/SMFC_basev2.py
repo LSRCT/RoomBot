@@ -3,6 +3,8 @@ import os, sys
 import numpy as np
 import paho.mqtt.client as mqtt
 import getch
+import pygame
+import pygame.locals
 
 
 class SMFCBase(mqtt.Client):
@@ -25,12 +27,14 @@ class SMFCBase(mqtt.Client):
         self.wasd = [0, 0, 0, 0]
 
         # magnetometer offset
-        self.mag_offset_X = -(154+214)/2
-        self.mag_offset_Y = -(227+289)/2
+        self.mag_offset_X = -(103+160)/2
+        self.mag_offset_Y = -(275+335)/2
+        self.phi_offset = 0
+        self.offset_count = 0
         self.phi_recent = 0
 
         # create a logfile if it doesnt exist
-        if self.log_data_
+        if self.log_data:
             if not os.path.isfile("rb_datalog.csv"):
                 with open("rb_datalog.csv", "w") as lf:
                     lf.write("t;s1;s2;s3;phi;ins;\n")
@@ -41,6 +45,7 @@ class SMFCBase(mqtt.Client):
             if self.logfile:
                 self.logfile.close()
         print("Server stopped")
+
 
     def on_connect(self, client, userdata, flags, rc):
         print(f"Connected with result code {rc}")
@@ -70,7 +75,7 @@ class SMFCBase(mqtt.Client):
             dist3 = 1
         if not self.control_mode:
             self.handle_locdata(dist1, dist2, dist3)
-        print(dist1, dist2, dist3)
+        print(dist1, dist2, dist3, self.phi_recent)
         if self.log_data:
             self.savelocdata(dist1, dist2, dist3, self.phi_recent, ins)
 
@@ -82,6 +87,7 @@ class SMFCBase(mqtt.Client):
         data_rcv = msg.payload.hex()
         magX = (int(data_rcv[0:4], 16)-200)/10
         magY = (int(data_rcv[4:8], 16)-200)/10
+        #print(magX, magY)
 
         # offset due to manufactoring
         magX += self.mag_offset_X
@@ -94,12 +100,20 @@ class SMFCBase(mqtt.Client):
         # get angle from complex
         phi = np.arctan2(magX, magY)*180/np.pi
 
-        # make sure 0 deg is same as 0 deg on map
-        phi += 20
+        phi -= self.phi_offset
 
         # -180:180 -> 0:360
         if phi < 0:
             phi += 360
+
+        # zero magnetometer at start. First measurement is shit so skip it
+        if self.offset_count == 1:
+            self.offset_count += 1
+            print(f"Offset magnetometer {phi} [DEG]")
+            self.phi_offset = phi
+        elif self.offset_count == 0:
+            self.offset_count += 1
+
         self.phi_recent = phi
 
     def serve(self):
@@ -110,10 +124,11 @@ class SMFCBase(mqtt.Client):
         while 1:
             # check for key input in manual mode
             if self.control_mode:
-                key_in = getch.getch()
-                k_ins = self.handle_keyin(key_in)
-                print(key_in)
-                self.ins_list.append(k_ins)
+                for event in pygame.event.get():
+                    if event.type == pygame.KEYDOWN:
+                        key_in = pygame.key.name(event.key)
+                        k_ins = self.handle_keyin(key_in)
+                        self.ins_list.append(k_ins)
             # execute instructions
             if len(self.ins_list):
                 for ins in self.ins_list:
@@ -126,7 +141,7 @@ class SMFCBase(mqtt.Client):
         Determine instruction from key input for manual controll
         """
         fwdL, fwdR, l, r = self.wasd
-        print(key)
+        print(f"handling {key}")
         r = 1024
         l = 1024
         if key == "w":
@@ -206,5 +221,14 @@ if __name__ == "__main__":
     port = 1883
     # mqtt broker ip
     ip = "192.168.178.27"
+    # setup pygame for manual mode
+    if manual:
+        pygame.init()
+        BLACK = (0,0,0)
+        WIDTH = 1280
+        HEIGHT = 1024
+        windowSurface = pygame.display.set_mode((WIDTH, HEIGHT), 0, 32)
+        windowSurface.fill(BLACK)
+
     hs = SMFCBase(ip, port, manual=manual)
     hs.serve()
