@@ -35,7 +35,7 @@ const char* MQTT_BROKER = "192.168.178.27";
 
 // setup functions
 void setupWifi();
-//void setupIMU();
+void setupIMU();
 void setupMQTT();
 void publish_mag();
 
@@ -50,7 +50,7 @@ USDS distSensor(D2, D1, D3, D0, D7, D6);
 
 void setup() {
   Serial.begin(115200);
-  //setupIMU();
+  setupIMU();
   setupWifi();
   setupMQTT();
 }
@@ -112,8 +112,8 @@ void loop() {
   distSensor.getDist();
 
   MQTTclient.publish("RR/sensors", distSensor.dist, 6);
- // publish_mag();
-   delay(80);
+  publish_mag();
+  //delay(80);
 }
 
 void publish_mag(){
