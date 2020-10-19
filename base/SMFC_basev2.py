@@ -26,6 +26,16 @@ class SMFCBase(mqtt.Client):
 
         self.roombot = RoomBot(log_data=log_data, disable_planning=manual)
 
+        if manual:
+            pygame.init()
+            BLACK = (0,0,0)
+            WHITE = (255,255,255)
+            HEIGHT = 1024
+            WIDTH = 1280
+            self.display = pygame.display.set_mode((WIDTH, HEIGHT), 0, 32)
+            self.display.fill(BLACK)
+            pygame.draw.rect(self.display, WHITE,(200,150,100,50))
+
     def __del__(self):
         print("Server stopped")
 
@@ -128,12 +138,37 @@ class SMFCBase(mqtt.Client):
             fwdL = 0
             fwdR = 0
         elif key == "p":
+            self.plot_occ_grid()
+            fwdL = 0
+            fwdR = 0
+        elif key == "o":
             self.roombot.plot_recorded_history()
+            fwdL = 0
+            fwdR = 0
 
         ins = [l*fwdL, r*fwdR]
         self.roombot.ins_input = ins
         return ins
 
+    def plot_occ_grid(self):
+        """
+        Plot the current occupancy grid in the pygame window. TODO inefficient
+        """
+        for x, row in enumerate(self.roombot.occupancy_grid):
+            for y, val in enumerate(row):
+                if val != 0:
+                    print(val)
+                c_val = val*255
+                if c_val >= 255:
+                    color = (255, 255, 255)
+                else: 
+                    color = (c_val, c_val, c_val)
+                # 1000-y because of weird pygame coordinate system
+                pygame.draw.rect(self.display, color,(x,1000-y,1,1))
+        pygame.display.update()
+        #plt.matshow(self.roombot.occupancy_grid*255)
+        #plt.show()
+        
 
     def savelocdata(self, data1, data2, data3, phi, ins):
         """
@@ -255,10 +290,51 @@ class RoomBot:
         # update position estimate according to shitty motion model
         self.data_list.append(self.data_new)
         self.update_position()
+        self.update_occupancy_grid()
 
         #if self.log_data:
         #    self.savelocdata(dist1, dist2, dist3, self.phi_recent, ins)
 
+
+    def update_occupancy_grid(self):
+        x, y = self.position[0], self.position[1]
+        if len(self.position_history) > 1:
+            x_old, y_old = self.position_history[-2][0], self.position_history[-2][1]
+        last_obs = self.data_list[-1]
+
+        x1 = last_obs[0]*np.sin(last_obs[3]*np.pi/180) + x
+        y1 = last_obs[0]*np.cos(last_obs[3]*np.pi/180) + y
+        x2 = last_obs[1]*np.sin((last_obs[3]-90)*np.pi/180) + x
+        y2 = last_obs[1]*np.cos((last_obs[3]-90)*np.pi/180) + y
+        x3 = last_obs[2]*np.sin((last_obs[3]+90)*np.pi/180) + x
+        y3 = last_obs[2]*np.cos((last_obs[3]+90)*np.pi/180) + y
+
+        #self.set_occgrid_coord(x,y, 1)
+        #self.set_occgrid_coord(x_old,y_old, 1)
+        self.set_occgrid_coord(x1,y1, 1)
+        self.set_occgrid_coord(x2,y2, 1)
+        self.set_occgrid_coord(x3,y3, 1)
+
+    def set_occgrid_coord(self, x ,y, val=1):
+        """
+        Put an observation into the occupancy grid in form of a gaussian blob
+        :param x: x coordinate of observation
+        :param y: y coordinate of observation
+        :param val: base value for how certain this observation is
+        """
+        sigma = 5
+        mu = 0
+        def blobfunc(x):
+            return (1/(sigma*np.sqrt(2*np.pi)))*np.exp(-0.5*((x-mu)**2/sigma**2))
+
+        blobsize = 10
+        if blobsize <= x < 1000-blobsize and blobsize <= y < 1000-blobsize:
+            for dx in range(-blobsize, blobsize):
+                for dy in range(-blobsize, blobsize):
+                    up_val = blobfunc(np.sqrt(dx**2+dy**2))
+                    self.occupancy_grid[int(round(x+dx))][int(round(y+dy))] += up_val
+                
+    
     def update_position(self):
         """
         Update the robots estimated position based on a shitty motion model
@@ -276,10 +352,10 @@ class RoomBot:
         if last_ins == [-1024, -1024]:
             dx = -1 * v_robot*np.sin(last_obs[3]*np.pi/180)
             dy = -1 * v_robot*np.cos(last_obs[3]*np.pi/180)
-        if last_ins in [[1024, 0], [0, 1024]:
+        if last_ins in [[1024, 0], [0, 1024]]:
             dx = 0.5 * v_robot*np.sin(last_obs[3]*np.pi/180)
             dy = 0.5 * v_robot*np.cos(last_obs[3]*np.pi/180)
-        if last_ins in [[-1024, 0], [0, -1024]:
+        if last_ins in [[-1024, 0], [0, -1024]]:
             dx = -0.5 * v_robot*np.sin(last_obs[3]*np.pi/180)
             dy = -0.5 * v_robot*np.cos(last_obs[3]*np.pi/180)
         self.position[0] += dx
@@ -326,6 +402,7 @@ class RoomBot:
         return ins
 
 
+
     def plot_recorded_history(self):
         """
         Plot robots position and relative sensor data
@@ -339,10 +416,12 @@ class RoomBot:
         x3 = np.array([data[2]*np.sin((data[3]+90)*np.pi/180) for data in self.data_list]) + x_coord
         y3 = np.array([data[2]*np.cos((data[3]+90)*np.pi/180) for data in self.data_list]) + y_coord
         
+        #plt.matshow(self.occupancy_grid*255)
+        #plt.show()
         plt.scatter(x_coord, y_coord)
-        plt.scatter(x1, y1)
-        plt.scatter(x2, y2)
-        plt.scatter(x3, y3)
+        #plt.scatter(x1, y1)
+        #plt.scatter(x2, y2)
+        #plt.scatter(x3, y3)
         plt.xlim(0, 1000)
         plt.ylim(0, 1000)
         plt.show()
@@ -359,13 +438,5 @@ if __name__ == "__main__":
     # mqtt broker ip
     ip = "192.168.178.27"
     # setup pygame for manual mode
-    if manual:
-        pygame.init()
-        BLACK = (0,0,0)
-        WIDTH = 1280
-        HEIGHT = 1024
-        windowSurface = pygame.display.set_mode((WIDTH, HEIGHT), 0, 32)
-        windowSurface.fill(BLACK)
-
     hs = SMFCBase(ip, port, manual=manual)
     hs.serve()
