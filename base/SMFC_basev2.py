@@ -73,6 +73,26 @@ class SMFCBase(mqtt.Client):
         magY = (int(data_rcv[4:8], 16)-200)/10
         self.roombot.handle_mag_data(magX, magY)
 
+    def calibrate_robot(self):
+        ins = [0,0]
+        next_ins = [0,0]
+        t0 = time.time()
+        robot_clock = 0.2
+        phi_list = []
+        time.sleep(1)
+        next_ins = [-1024, 1024]
+        self.publish("RR/driveIns", self.conv_ar_to_msg(next_ins))
+        for x in range(20):
+            time.sleep(0.2)
+            self.roombot.execute_timestep()
+            next_ins = [-1024, 1024]
+            self.publish("RR/driveIns", self.conv_ar_to_msg(next_ins))
+            phi_list.append(self.roombot.phi_recent)
+        print(phi_list)
+        dphi_dt = [x if x<0 else x-360 for x in np.diff(phi_list) ]
+        print(dphi_dt)
+        print(np.mean(dphi_dt), np.std(dphi_dt))
+
     def serve(self):
         """
         Start the server and serve forever
@@ -81,7 +101,7 @@ class SMFCBase(mqtt.Client):
         ins = [0,0]
         next_ins = [0,0]
         t0 = time.time()
-        robot_clock = 0.1
+        robot_clock = 0.2
         while 1:
             # check for key input in manual mode
             if self.control_mode:
@@ -110,7 +130,7 @@ class SMFCBase(mqtt.Client):
         q - turn left in place
         e - turn right in place
         """
-        print(f"handling {key}")
+        #print(f"handling {key}")
         r = 1024
         l = 1024
         fwdL = self.fwd
@@ -164,29 +184,23 @@ class SMFCBase(mqtt.Client):
         oc /= np.sum(oc) 
         oc /= np.max(oc)
         oc *= 255
+        self.display.fill((0,0,0))
+
         for x, row in enumerate(oc):
             for y, val in enumerate(row):
                 if val != 0:
-                    print(val)
-                c_val = val*255
-                if c_val >= 255:
-                    color = (255, 255, 255)
-                else: 
-                    color = (c_val, c_val, c_val)
-                # 1000-y because of weird pygame coordinate system
-                pygame.draw.rect(self.display, color,(x,1000-y,1,1))
+                    c_val = val*255
+                    if c_val >= 255:
+                        color = (255, 255, 255)
+                    else: 
+                        color = (c_val, c_val, c_val)
+                    # 1000-y because of weird pygame coordinate system
+                    pygame.draw.rect(self.display, color,(x,1000-y,1,1))
         pygame.display.update()
         #plt.matshow(self.roombot.occupancy_grid*255)
         #plt.show()
         
 
-    def savelocdata(self, data1, data2, data3, phi, ins):
-        """
-        Save the sensor data to a csv file
-        """
-        self.logfile.write(";".join([str(x) for x in [time.time(), data1, data2, data3, phi, int(ins), "\n"]]))
-        self.logfile.flush()
-            
     def conv_ar_to_msg(self, ar):
         """
         Encode an instruction for the robot
@@ -215,6 +229,7 @@ class RoomBot:
         :param disable_planning: Disbale internal planning and use keyboard input instead
         """
         self.occupancy_grid = np.zeros((1000, 1000))
+        self.empty_grid = np.zeros((1000, 1000))
         self.position = [500,500]
 
 
@@ -228,38 +243,60 @@ class RoomBot:
         self.position_history = []
 
         # magnetometer offset
-        self.mag_offset_X = -(103+160)/2
-        self.mag_offset_Y = -(275+335)/2
+        self.X_minmax = [26.1, 73.1]
+        self.Y_minmax = [221, 276]
+        self.mag_offset_X = np.mean(self.X_minmax)
+        self.mag_offset_Y = np.mean(self.Y_minmax)
+        self.magX = 0
+        self.magY = 0
         self.phi_offset = 0
         self.offset_count = 0
         self.phi_recent = 0
 
         # create a logfile if it doesnt exist
         if self.log_data:
-            if not os.path.isfile("rb_datalog.csv"):
-                with open("rb_datalog.csv", "w") as lf:
+            if not os.path.isfile("rb_data.csv"):
+                with open("rb_data.csv", "w") as lf:
                     lf.write("t;s1;s2;s3;phi;ins;\n")
-            self.logfile = open("rb_datalog.csv", "a")
+            self.logfile = open("rb_data.csv", "a")
 
     def __del__(self):
         if self.log_data:
             if self.logfile:
                 self.logfile.close()
     
+
+    def calib_mag(self, magX, magY):
+        """
+        Calibrate magnetometer
+        """
+        if self.offset_count >= 1:
+            if magX < self.X_minmax[0]:
+                self.X_minmax[0] = magX
+            if magX > self.X_minmax[1]:
+                self.X_minmax[1] = magX
+            if magY < self.Y_minmax[0]:
+                self.Y_minmax[0] = magY
+            if magY > self.Y_minmax[1]:
+                self.Y_minmax[1] = magY
+        self.mag_offset_X = np.mean(self.X_minmax)
+        self.mag_offset_Y = np.mean(self.Y_minmax)
+
     def handle_mag_data(self, magX, magY):
         """
         Handle magnetometer data. Calculate angle and compensate device offset
         :param magX: Magnetometer value X direction
         :param magY: Magnetometer value Y direction
         """
+        #self.calib_mag(magX, magY)
         # offset due to manufactoring
-        magX += self.mag_offset_X
-        magY += self.mag_offset_Y
+        magX -= self.mag_offset_X
+        magY -= self.mag_offset_Y
 
-        # Scale because we are not at the equator
-        magX *= 30/33
-        magY *= 30/31
-        
+        # scale
+        magX /= self.X_minmax[1] - self.mag_offset_X
+        magY /= self.Y_minmax[1] - self.mag_offset_Y
+
         # get angle from complex
 
         phi = np.arctan2(magX, magY)*180/np.pi
@@ -267,6 +304,8 @@ class RoomBot:
         phi -= self.phi_offset
 
         # -180:180 -> 0:360
+        if phi < 0:
+            phi += 360
         if phi < 0:
             phi += 360
 
@@ -277,6 +316,7 @@ class RoomBot:
             self.phi_offset = phi
         elif self.offset_count == 0:
             self.offset_count += 1
+
         self.phi_recent = phi
 
     def handle_dist_data(self, d1, d2, d3):
@@ -305,23 +345,28 @@ class RoomBot:
         Execute a discrete robot timestep
         """
         # update position estimate according to shitty motion model
-        self.check_phi_change()
+        #self.check_phi_change()
         self.data_list.append(self.data_new)
         self.update_position()
         self.update_occupancy_grid()
         # plan if enabled
         if not self.disable_planning:
             self.plan_action()
+        if self.log_data:
+            ins = self.get_instruction()
+            self.savelocdata(*self.data_new, ins)
 
-        #if self.log_data:
-        #    self.savelocdata(dist1, dist2, dist3, self.phi_recent, ins)
-    
-    def check_phi_change(self):
-        last_ins = self.get_instruction()
-        if last_ins in [[1024, 1024], [-1024, -1024]]:
-            self.data_new[3] = 0.9*self.data_list[-1][3]+ 0.1*self.data_new[3]
-
+    def savelocdata(self, data1, data2, data3, phi, ins):
+        """
+        Save the sensor data to a csv file
+        """
+        self.logfile.write(";".join([str(x) for x in [time.time(), data1, data2, data3, phi, ins[0], ins[1], "\n"]]))
+        self.logfile.flush()
+            
     def update_occupancy_grid(self):
+        """
+        Basic mapping using simple motion and sensor model
+        """
         x, y = self.position[0], self.position[1]
         if len(self.position_history) > 1:
             x_old, y_old = self.position_history[-2][0], self.position_history[-2][1]
@@ -335,11 +380,10 @@ class RoomBot:
         x3 = last_obs[2]*np.sin((last_obs[3]+90)*np.pi/180) + x
         y3 = last_obs[2]*np.cos((last_obs[3]+90)*np.pi/180) + y
 
-        #self.set_occgrid_coord(x,y, 1)
-        #self.set_occgrid_coord(x_old,y_old, 1)
         self.set_occgrid_coord(x1,y1, last_obs[0])
         self.set_occgrid_coord(x2,y2, last_obs[1])
         self.set_occgrid_coord(x3,y3, last_obs[2])
+
 
     def set_occgrid_coord(self, x ,y, val=1):
         """
@@ -349,21 +393,21 @@ class RoomBot:
         :param val: base value for how certain this observation is
         """
         # sensors suck for big distances
-        if val < 100:
+        if val > 100:
             return
-        sigma = (val/50)
+        sigma = (val / 50)
         mu = 0
         def blobfunc(x):
-            return (1/(sigma*np.sqrt(2*np.pi)))*np.exp(-0.5*((x-mu)**2/sigma**2))
+            return (1 / (sigma * np.sqrt(2 * np.pi)))*np.exp(-0.5*((x - mu)**2 / sigma**2))
 
-        blobsize = 10
-        if blobsize <= x < 1000-blobsize and blobsize <= y < 1000-blobsize:
+        blobsize = 15
+        if blobsize <= x < 1000-blobsize and blobsize <= y < 1000 - blobsize:
             for dx in range(-blobsize, blobsize):
                 for dy in range(-blobsize, blobsize):
-                    if np.sqrt(dy**2+dx**2) < blobsize:
-                        up_val = blobfunc(np.sqrt(dx**2+dy**2))
-                        self.occupancy_grid[int(round(x+dx))][int(round(y+dy))] += up_val
-
+                    l = np.linalg.norm([dx, dy])
+                    if l < blobsize:
+                        up_val = blobfunc(l)
+                        self.occupancy_grid[int(round(x + dx))][int(round(y + dy))] += up_val
                 
     
     def update_position(self):
@@ -371,24 +415,30 @@ class RoomBot:
         Update the robots estimated position based on a shitty motion model
         """
         last_ins = self.get_instruction()
+
         last_obs = self.data_list[-1]
+        #print(self.phi_recent, self.phi_current)
 
         # robot velocity in 1/100 cm/s
-        v_robot = 5.5
+        v_robot = 7.5
         dx = 0
         dy = 0
         if last_ins == [1024, 1024]:
-            dx = v_robot*np.sin(last_obs[3]*np.pi/180)
-            dy = v_robot*np.cos(last_obs[3]*np.pi/180)
+            dx = v_robot * np.sin(last_obs[3] * np.pi/180)
+            dy = v_robot * np.cos(last_obs[3] * np.pi/180)
         elif last_ins == [-1024, -1024]:
-            dx = -1 * v_robot*np.sin(last_obs[3]*np.pi/180)
-            dy = -1 * v_robot*np.cos(last_obs[3]*np.pi/180)
+            dx = -1 * v_robot * np.sin(last_obs[3]*np.pi/180)
+            dy = -1 * v_robot * np.cos(last_obs[3]*np.pi/180)
         elif last_ins in [[1024, -1024], [-1024, 1024]]:
             dx = 0
             dy = 0
         else:
             dx = last_ins[0]/1024* v_robot*np.sin(last_obs[3]*np.pi/180)
             dx = last_ins[1]/1024* v_robot*np.sin(last_obs[3]*np.pi/180)
+        if len(self.data_list)>1:
+            sndl_obs = self.data_list[-2]
+            v_real = np.mean(np.diff([x[0] for x in self.data_list[-5:]]))
+            #print(v_robot, v_real)
         self.position[0] += dx
         self.position[1] += dy
         self.position_history.append(np.copy(self.position))
@@ -398,6 +448,8 @@ class RoomBot:
         React to new sensordata.
         Basically modify the instruction list
         """
+        if len(self.ins_list):
+            return
         d1, d2, d3, phi = self.data_list[-1]
         
         r = 1024
@@ -432,16 +484,16 @@ class RoomBot:
                     # left and right are redundant, sensors are better at close distance, use the closer one
                     if d3 > d2:
                         # d2/d1 = d2/dt * dt/d1
-                        grad = d2_dt/d1_dt
+                        grad = d2_dt / d1_dt
                     else:
-                        grad = -d3_dt/d1_dt
+                        grad = -d3_dt / d1_dt
                     # correct course based on gradient
+                    print(grad)
                     if grad > 0:
-                        r -= grad*500
+                        r -= grad * 500
                     else:
-                        l -= grad*500
-        self.ins_planned = [int(l),int(r)]
-        self.ins_list.append([l,r])
+                        l -= grad * 500
+        self.ins_planned = [int(l), int(r)]
 
     def get_instruction(self):
         """
@@ -453,13 +505,7 @@ class RoomBot:
             ins = self.ins_input
         else:
             ins = self.ins_planned
-           #if len(self.ins_list):
-           #    ins = self.ins_list[-1]
-           #else:
-           #    ins = [0,0]
         return ins
-
-
 
     def plot_recorded_history(self):
         """
@@ -474,12 +520,7 @@ class RoomBot:
         x3 = np.array([data[2]*np.sin((data[3]+90)*np.pi/180) for data in self.data_list]) + x_coord
         y3 = np.array([data[2]*np.cos((data[3]+90)*np.pi/180) for data in self.data_list]) + y_coord
         
-        #plt.matshow(self.occupancy_grid*255)
-        #plt.show()
         plt.scatter(x_coord, y_coord)
-        #plt.scatter(x1, y1)
-        #plt.scatter(x2, y2)
-        #plt.scatter(x3, y3)
         plt.xlim(0, 1000)
         plt.ylim(0, 1000)
         plt.show()
@@ -496,5 +537,6 @@ if __name__ == "__main__":
     # mqtt broker ip
     ip = "192.168.178.27"
     # setup pygame for manual mode
-    hs = SMFCBase(ip, port, manual=manual)
+    hs = SMFCBase(ip, port, manual=manual, log_data=1)
+    #hs.calibrate_robot()
     hs.serve()
