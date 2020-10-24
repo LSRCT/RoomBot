@@ -49,7 +49,7 @@ class RBLocTester:
                     new_coords.append([x+noise_x, y+noise_y, z+noise_z])
         return new_coords
 
-    def est_prob_video(self, datslice, save=0):
+    def est_prob_video(self, datslice, save=0, show=1):
         """
         Show the probabiliy map for a dataslice as a video
         """
@@ -59,6 +59,10 @@ class RBLocTester:
         rshap = (len(set(self.rl.precalc_dist[0].T[2])), -1)
         map_room = np.asarray(self.map_room)
         map_room = np.abs(np.round(map_room, 1)-255)*255
+        if save:
+            save_name = "rb_mov.avi"
+            fourcc = cv2.VideoWriter_fourcc(*'XVID')
+            out = cv2.VideoWriter(save_name, fourcc, 10.0,(600, 450), isColor=False)
 
         # estimate position for all selected data points
         for data_numb, (data, control) in enumerate(zip(self.sdat_list[datslice], self.cdat_list[datslice])):
@@ -69,9 +73,15 @@ class RBLocTester:
             for coord, p in zip(pos, prob):
                 map_room[coord[0]-bs:coord[0]+bs+1, coord[1]-bs:coord[1]+bs+1] = np.ones(((bs*2)+1,(bs*2)+1), dtype=np.uint8)* np.uint8(p)
             map_room_crop = map_room[550:1000, 650:1250]
-            cv2.imshow('Frame', map_room_crop)
-            if cv2.waitKey(2) & 0xFF == ord("q"):
-                break
+            print(np.shape(map_room_crop))
+            if save:
+                out.write(map_room_crop)
+            if show:
+                cv2.imshow('Frame', map_room_crop)
+                if cv2.waitKey(2) & 0xFF == ord("q"):
+                    break
+        if save:
+            out.release()
         cv2.destroyAllWindows()
 
     def plot_est_prob(self, frame, ax=None):
@@ -150,6 +160,6 @@ def winAvg(data, winWidth=0, winfunc=np.blackman, mode="same"):
 
 rbtest = RBLocTester("rb_data.csv")
 dslice = slice(0, 390)
-rbtest.est_prob_video(dslice)
+rbtest.est_prob_video(dslice, save=1, show=1)
 #rbtest.plot_raw(dslice)
 #rbtest.plot_prob_timeline([220, 240, 260, 280])
