@@ -154,7 +154,7 @@ class RobotLocator:
         Bel(x_t) = alpha * P(s|x_t, map) * P(x_t|u_t, x_t-1)
         """
         # Gaussian
-        def euclidean_to_x(d, mu=-0.1, sigma=0.1):
+        def euclidean_to_x(d, mu=0, sigma=0.05):
             return (1/sigma*2.5)*np.e**(-0.5*(((d-mu)/sigma)**2))
 
         self.dist_list = self.dist_list/np.max(self.dist_list)
