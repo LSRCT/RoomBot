@@ -113,7 +113,7 @@ void loop() {
 
   MQTTclient.publish("RR/sensors", distSensor.dist, 6);
   publish_mag();
-  //delay(80);
+  delay(80);
 }
 
 void publish_mag(){
@@ -130,7 +130,7 @@ void publish_mag(){
     //mX += IMU.magHorizDirection()+180;
     mX += IMU.magX();
     mY += IMU.magY();
-    delay(10);
+    delay(1);
     }
   // make sure its not negativem 200 is arbitrary
   mY = (mY)+2000;
