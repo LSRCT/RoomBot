@@ -87,6 +87,7 @@ In this demo the starting location is giving, from there the localization works 
 Particle filters are state-of-the-art for many robot localization problems for their comparatively low computational cost and ability to approximate arbitrary distributions [1].
 I implemented a simple particle filter to localize the robot using 1000 particles, the result can be seen below.
 ![probability gid](media/rb_loc_demo_pf.gif)
+
 It is clear that the particle filter algorithm can handle high uncertainty in the inital position and deals well with the large amount of noise the sensor system of the robot is subject to.
 
 
