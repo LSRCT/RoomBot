@@ -1,9 +1,9 @@
 # RoomBot
 
 RoomBot is a cheap vacuum robot (25€) I upgraded for knowledge and _profit_.
-![probability gid](media/rb_loc_demo.gif)
+![probability gid](media/rb_loc_demo_pf.gif)
 
-## Robot
+## Robot v1
 The robot drives around randomly by design and cannot be steered. Since my flat is small it randomly drives everywhere in a reasonable amount of time anyway, so this is not an issue. To guarantee it gets everywhere the battery was upgraded. Another problem with the cheap device is that it does not include any object avoidance. To deal with this, distance sensors where added to it.
 
 In total the robot was upgraded with:
@@ -53,7 +53,7 @@ In the following picture the progressing of the probability map over six seconds
 
 From this data it bacme clear either more sensor data (i.e. LIDAR) or a controllable robot is needed for precise localization.
 
-## Robot V2
+## Robot v2
 
 Robot built from scratch including 4 controllable motors, one for each wheel. Two wheels on each side of the robot are controlled using the same signal. This differential drive is controlled wirelessly using an additional ESP8266. The robot has the same sensors as v1 mounted to it.
 
@@ -63,7 +63,11 @@ In total the robot includes:
 - ESP8266 for wireless controll
 - ESP8266 for data transmission
 
-### Localization 
+### Localization
+Version 2 of the robot is more advanced sensor and control system. This brings the possibility of more advanced localization algorithms.
+In the follow I show Markov localization to compare both robot versions as well as localization using a particle filter.
+
+#### Markov Localization 
 
 Since V2 is controlled and does not drive around randomly, localization works much better. Markov localization is still used, with the difference being the added control input.
 
@@ -78,17 +82,23 @@ The gif below shows the robot driving through the room, being localized almost p
 
 In this demo the starting location is giving, from there the localization works using the robot control input and sensor data. Since the sensor data becomes very inaccurate for distances larger than 2m, those measurements have not been used.
 
-### Future work
+#### Particle Filters
+
+Particle filters are state-of-the-art for many robot localization problems for their comparatively low computational cost and ability to approximate arbitrary distributions [1].
+I implemented a simple particle filter to localize the robot using 1000 particles, the result can be seen below.
+![probability gid](media/rb_loc_demo_pf.gif)
+It is clear that the particle filter algorithm can handle high uncertainty in the inital position and deals well with the large amount of noise the sensor system of the robot is subject to.
+
+
+## Future work
 
 Some data is provided for localization, improvements would be to remoce those requirements.
 The information required is:
-- Robot starting position
+- <s>Robot starting position</s>
 - Map of the room
 
-To remove the starting position requirement a particle filter could be included.
-
+<s>To remove the starting position requirement a particle filter could be included.</s>
 Removing the map requirement is a harder problem. There are differen grid SLAM algorithms to deal with this, but it is unsure if the given sensor data is enough to use those approaches.
-
 
 ## References
 <a id="1">[1]</a> 
