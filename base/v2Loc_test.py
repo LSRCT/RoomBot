@@ -1,4 +1,4 @@
-from v2RobotLocator import RobotLocator
+from v2RobotLocator_PF import RobotLocator
 import cv2
 from scipy.ndimage import uniform_filter1d
 import matplotlib.pyplot as plt
@@ -115,6 +115,42 @@ class RBLocTester:
         else:
             ax.matshow(map_room_crop)
 
+    def est_particle_video(self, datslice, save=0, show=1):
+        """
+        Show the particles for a dataslice as a video
+        """
+        # load simulated distances and room map
+        pos = self.rl.precalc_dist[0]
+        pos = np.reshape(pos, (len(set(pos.T[2])), -1, 3))[0]
+        rshap = (len(set(self.rl.precalc_dist[0].T[2])), -1)
+        map_room = np.asarray(self.map_room)
+        map_room = np.abs(np.round(map_room, 1)-255)*255
+        if save:
+            save_name = "rb_mov.avi"
+            fourcc = cv2.VideoWriter_fourcc(*'XVID')
+            out = cv2.VideoWriter(save_name, fourcc, 10.0,(600, 450), isColor=False)
+
+        # estimate position for all selected data points
+        for data_numb, (data, control) in enumerate(zip(self.sdat_list[datslice], self.cdat_list[datslice])):
+            map_room = np.asarray(self.map_room)
+            map_room = np.abs(np.round(map_room, 1)-255)*255
+            self.rl.estimate_pos([data[1], data[0], data[2], data[3]], control)
+            particles = self.rl.particles
+            bs= 2 # blobsize
+            for coord in particles:
+                map_room[coord[0]-bs:coord[0]+bs+1, coord[1]-bs:coord[1]+bs+1] = np.ones(((bs*2)+1,(bs*2)+1), dtype=np.uint8)* np.uint8(255)
+            map_room_crop = map_room[550:1000, 650:1250]
+            if save:
+                out.write(map_room_crop)
+            if show:
+                cv2.imshow('Frame', map_room_crop)
+                if cv2.waitKey(2) & 0xFF == ord("q"):
+                    break
+        if save:
+            out.release()
+        cv2.destroyAllWindows()
+    
+    
     def plot_position_history(self):
         plt.scatter(self.cdat_list.T[0].T, self.cdat_list.T[1].T)
         plt.show()
@@ -160,6 +196,6 @@ def winAvg(data, winWidth=0, winfunc=np.blackman, mode="same"):
 
 rbtest = RBLocTester("rb_data.csv")
 dslice = slice(0, 390)
-rbtest.est_prob_video(dslice, save=1, show=1)
+rbtest.est_particle_video(dslice, save=1, show=1)
 #rbtest.plot_raw(dslice)
 #rbtest.plot_prob_timeline([220, 240, 260, 280])
